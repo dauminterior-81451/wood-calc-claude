@@ -252,17 +252,7 @@ export default function Home() {
       {/* 헤더 */}
       <header className="bg-white border-b border-gray-200 px-4 py-4">
         <div className="max-w-3xl mx-auto">
-          <div className="flex items-center justify-between mb-3">
-            <h1 className="text-xl font-bold text-gray-900">목공 산출</h1>
-            {siteName && (
-              <button
-                onClick={() => { setSiteName(''); setZones([]); setSelectedId(null); setShowForm(false); setHeaderMode(null) }}
-                className="text-xs text-gray-400 hover:text-gray-600"
-              >
-                현장 변경
-              </button>
-            )}
-          </div>
+          <h1 className="text-xl font-bold text-gray-900 mb-3">목공 산출</h1>
 
           {/* 현장 미선택: 버튼 2개 */}
           {!siteName && headerMode === null && (
@@ -271,13 +261,13 @@ export default function Home() {
                 onClick={() => setHeaderMode('new')}
                 className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors"
               >
-                + 새 현장
+                + 새 현장 만들기
               </button>
               <button
                 onClick={handleOpenLoad}
                 className="flex-1 py-2.5 rounded-xl border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
               >
-                현장 불러오기
+                기존 현장 불러오기
               </button>
             </div>
           )}
@@ -349,9 +339,17 @@ export default function Home() {
 
           {/* 현장 선택 완료 */}
           {siteName && (
-            <p className="text-xs text-gray-500 mt-1">
-              현장: <span className="font-semibold text-gray-800">{siteName}</span>
-            </p>
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-gray-700">
+                현장: <span className="font-semibold">{siteName}</span>
+              </p>
+              <button
+                onClick={() => { setSiteName(''); setZones([]); setSelectedId(null); setShowForm(false); setHeaderMode(null) }}
+                className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2"
+              >
+                현장 변경
+              </button>
+            </div>
           )}
         </div>
       </header>

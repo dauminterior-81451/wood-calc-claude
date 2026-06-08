@@ -124,9 +124,10 @@ function MaterialTable({
 export default function Home() {
   const [tab, setTab] = useState<'자재산출' | '단가표관리'>('자재산출')
   const [siteName, setSiteName] = useState('')
+  const [siteId, setSiteId] = useState('')   // wood_sites.id (UUID)
   const [headerMode, setHeaderMode] = useState<null | 'new' | 'load'>(null)
   const [newSiteInput, setNewSiteInput] = useState('')
-  const [existingSites, setExistingSites] = useState<string[]>([])
+  const [existingSites, setExistingSites] = useState<{ id: string; name: string }[]>([])
   const [loadingSites, setLoadingSites] = useState(false)
   const [zones, setZones] = useState<WoodZone[]>([])
   const [prices, setPrices] = useState<WoodMaterialPrice[]>([])
@@ -171,34 +172,51 @@ export default function Home() {
     setHeaderMode('load')
     setLoadingSites(true)
     try {
-      const { data } = await supabase.from('wood_zones').select('siteId')
-      if (data) {
-        const unique = Array.from(new Set((data as { siteId: string }[]).map((r) => r.siteId))).sort()
-        setExistingSites(unique)
-      }
+      const { data, error } = await supabase
+        .from('wood_sites')
+        .select('id, name')
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      setExistingSites((data ?? []) as { id: string; name: string }[])
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : '현장 목록 로드 실패')
     } finally {
       setLoadingSites(false)
     }
   }
 
-  function handleConfirmNewSite() {
+  async function handleConfirmNewSite() {
     const name = newSiteInput.trim()
     if (!name) return
-    setSiteName(name)
-    setZones([])
-    setSelectedId(null)
-    setShowForm(false)
-    setHeaderMode(null)
-    setNewSiteInput('')
+    setError(null)
+    try {
+      const { data, error } = await supabase
+        .from('wood_sites')
+        .insert([{ name }])
+        .select('id, name')
+        .single()
+      if (error) throw error
+      const site = data as { id: string; name: string }
+      setSiteName(site.name)
+      setSiteId(site.id)
+      setZones([])
+      setSelectedId(null)
+      setShowForm(false)
+      setHeaderMode(null)
+      setNewSiteInput('')
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : '현장 저장 실패')
+    }
   }
 
-  function handleSelectSite(name: string) {
+  function handleSelectSite(id: string, name: string) {
     setSiteName(name)
+    setSiteId(id)
     setZones([])
     setSelectedId(null)
     setShowForm(false)
     setHeaderMode(null)
-    fetchZones(name)
+    fetchZones(id)
   }
 
   async function handleSaveZone(
@@ -318,12 +336,15 @@ export default function Home() {
                 <>
                   <select
                     defaultValue=""
-                    onChange={(e) => e.target.value && handleSelectSite(e.target.value)}
+                    onChange={(e) => {
+                      const site = existingSites.find((s) => s.id === e.target.value)
+                      if (site) handleSelectSite(site.id, site.name)
+                    }}
                     className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                   >
                     <option value="" disabled>현장 선택…</option>
                     {existingSites.map((s) => (
-                      <option key={s} value={s}>{s}</option>
+                      <option key={s.id} value={s.id}>{s.name}</option>
                     ))}
                   </select>
                   <button
@@ -344,7 +365,7 @@ export default function Home() {
                 현장: <span className="font-semibold">{siteName}</span>
               </p>
               <button
-                onClick={() => { setSiteName(''); setZones([]); setSelectedId(null); setShowForm(false); setHeaderMode(null) }}
+                onClick={() => { setSiteName(''); setSiteId(''); setZones([]); setSelectedId(null); setShowForm(false); setHeaderMode(null) }}
                 className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2"
               >
                 현장 변경
@@ -400,8 +421,8 @@ export default function Home() {
                 </h2>
                 <button
                   onClick={() => {
-                    if (!siteName) {
-                      alert('현장명을 먼저 입력하세요')
+                    if (!siteId) {
+                      alert('현장을 먼저 선택하세요')
                       return
                     }
                     setShowForm((v) => !v)
@@ -473,7 +494,7 @@ export default function Home() {
               <div>
                 <p className="text-xs font-semibold text-gray-500 mb-2 px-1">새 구역 추가</p>
                 <ZoneForm
-                  siteId={siteName}
+                  siteId={siteId}
                   companyId="default"
                   onSave={handleSaveZone}
                   onCancel={() => setShowForm(false)}

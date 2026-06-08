@@ -5,7 +5,7 @@
 export interface WoodZone {
   id: string
   siteId: string
-  company_id: string
+  company_id?: string
   zone_name: string
   part: '천장' | '벽'
   dim1: number               // mm

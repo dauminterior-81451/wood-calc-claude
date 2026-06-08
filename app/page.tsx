@@ -502,7 +502,6 @@ export default function Home() {
                 <p className="text-xs font-semibold text-gray-500 mb-2 px-1">새 구역 추가</p>
                 <ZoneForm
                   siteId={siteId}
-                  companyId="default"
                   onSave={handleSaveZone}
                   onCancel={() => setShowForm(false)}
                 />

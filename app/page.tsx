@@ -190,12 +190,17 @@ export default function Home() {
     if (!name) return
     setError(null)
     try {
+      console.log('[wood_sites] insert 시도:', { name })
       const { data, error } = await supabase
         .from('wood_sites')
         .insert([{ name }])
         .select('id, name')
         .single()
-      if (error) throw error
+      if (error) {
+        console.error('[wood_sites] insert 에러:', error)
+        throw error
+      }
+      console.log('[wood_sites] insert 성공:', data)
       const site = data as { id: string; name: string }
       setSiteName(site.name)
       setSiteId(site.id)
@@ -205,7 +210,9 @@ export default function Home() {
       setHeaderMode(null)
       setNewSiteInput('')
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : '현장 저장 실패')
+      const msg = e instanceof Error ? e.message : '현장 저장 실패'
+      console.error('[wood_sites] 저장 실패:', e)
+      setError(msg)
     }
   }
 

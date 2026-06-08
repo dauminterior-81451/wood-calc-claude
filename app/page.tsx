@@ -173,7 +173,7 @@ export default function Home() {
     try {
       const { data } = await supabase.from('wood_zones').select('siteId')
       if (data) {
-        const unique = [...new Set((data as { siteId: string }[]).map((r) => r.siteId))].sort()
+        const unique = Array.from(new Set((data as { siteId: string }[]).map((r) => r.siteId))).sort()
         setExistingSites(unique)
       }
     } finally {

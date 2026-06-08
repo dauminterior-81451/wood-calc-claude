@@ -233,12 +233,22 @@ export default function Home() {
     setSavingZone(true)
     setError(null)
     try {
+      console.log('[wood_zones] insert 시도:', JSON.stringify(data, null, 2))
       const { data: inserted, error } = await supabase
         .from('wood_zones')
         .insert([data])
         .select()
         .single()
-      if (error) throw error
+      if (error) {
+        console.error('[wood_zones] insert 에러:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+        })
+        throw error
+      }
+      console.log('[wood_zones] insert 성공:', inserted)
       const zone = inserted as WoodZone
       setZones((prev) => [...prev, zone])
       setLossRateMap((prev) => ({ ...prev, [zone.id]: lossRate }))

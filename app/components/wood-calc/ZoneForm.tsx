@@ -298,18 +298,14 @@ export default function ZoneForm({ siteId, companyId, initial, onSave, onCancel 
             </OptionBtn>
           ))}
         </div>
-      </Section>
-
-      {/* 쪽 발주 */}
-      <Section>
-        <label className="flex items-center gap-2 cursor-pointer select-none">
+        <label className="flex items-center gap-2 cursor-pointer select-none mt-2">
           <input
             type="checkbox"
             checked={halfSheet}
             onChange={(e) => setHalfSheet(e.target.checked)}
             className="w-4 h-4 accent-blue-600 cursor-pointer"
           />
-          <span className="text-sm font-semibold text-gray-700">엘리베이터 제한 — 쪽 발주</span>
+          <span className="text-sm text-gray-700">엘리베이터 제한 — 쪽 발주</span>
           <span className="text-xs text-gray-400">(커버면적 1.49㎡, 온장 절반)</span>
         </label>
       </Section>

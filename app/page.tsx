@@ -1,101 +1,437 @@
-import Image from "next/image";
+'use client'
+
+import { useCallback, useEffect, useState } from 'react'
+import { supabase } from '@/app/lib/supabase'
+import ZoneForm from '@/app/components/wood-calc/ZoneForm'
+import {
+  WoodZone,
+  WoodMaterialPrice,
+  ZoneResult,
+  SummaryLine,
+  calcArea,
+  calcZone,
+  aggregateZones,
+  DEFAULT_LOSS_RATE,
+} from '@/app/lib/woodCalc'
+
+// ─── 단가표관리 탭 ────────────────────────────────────────────────────────────
+
+function PriceTable({
+  prices,
+  onRefresh,
+}: {
+  prices: WoodMaterialPrice[]
+  onRefresh: () => void
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-gray-500">{prices.length}개 자재</p>
+        <button onClick={onRefresh} className="text-sm text-blue-600 hover:underline">
+          새로고침
+        </button>
+      </div>
+      <div className="overflow-x-auto rounded-xl border border-gray-200">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+            <tr>
+              <th className="px-4 py-3 text-left">자재명</th>
+              <th className="px-4 py-3 text-left">규격</th>
+              <th className="px-4 py-3 text-left">카테고리</th>
+              <th className="px-4 py-3 text-right">단가</th>
+              <th className="px-4 py-3 text-left">단위</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {prices.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
+                  단가 데이터가 없습니다
+                </td>
+              </tr>
+            ) : (
+              prices.map((p) => (
+                <tr key={p.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-2.5 font-medium text-gray-800">{p.name}</td>
+                  <td className="px-4 py-2.5 text-gray-600">{p.spec}</td>
+                  <td className="px-4 py-2.5 text-gray-500">{p.category}</td>
+                  <td className="px-4 py-2.5 text-right text-gray-800">
+                    {p.price.toLocaleString()}
+                  </td>
+                  <td className="px-4 py-2.5 text-gray-500">{p.unit}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+// ─── 자재 테이블 (구역별/합계 공용) ──────────────────────────────────────────
+
+function MaterialTable({
+  rows,
+  footer,
+}: {
+  rows: { name: string; qty: number; unit: string; price: number; amount: number }[]
+  footer?: React.ReactNode
+}) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead className="bg-gray-50 text-xs text-gray-500">
+          <tr>
+            <th className="px-4 py-2.5 text-left">자재명</th>
+            <th className="px-4 py-2.5 text-right">수량</th>
+            <th className="px-4 py-2.5 text-left">단위</th>
+            <th className="px-4 py-2.5 text-right">단가</th>
+            <th className="px-4 py-2.5 text-right">금액</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {rows.length === 0 ? (
+            <tr>
+              <td colSpan={5} className="px-4 py-6 text-center text-gray-400">
+                산출 자재 없음
+              </td>
+            </tr>
+          ) : (
+            rows.map((m, i) => (
+              <tr key={i} className="hover:bg-gray-50">
+                <td className="px-4 py-2.5 text-gray-800">{m.name}</td>
+                <td className="px-4 py-2.5 text-right text-gray-700">{m.qty}</td>
+                <td className="px-4 py-2.5 text-gray-500">{m.unit}</td>
+                <td className="px-4 py-2.5 text-right text-gray-700">
+                  {m.price.toLocaleString()}
+                </td>
+                <td className="px-4 py-2.5 text-right font-medium text-gray-900">
+                  {m.amount.toLocaleString()}
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+        {footer}
+      </table>
+    </div>
+  )
+}
+
+// ─── 메인 페이지 ──────────────────────────────────────────────────────────────
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [tab, setTab] = useState<'자재산출' | '단가표관리'>('자재산출')
+  const [siteName, setSiteName] = useState('')
+  const [siteInput, setSiteInput] = useState('')
+  const [zones, setZones] = useState<WoodZone[]>([])
+  const [prices, setPrices] = useState<WoodMaterialPrice[]>([])
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [lossRateMap, setLossRateMap] = useState<Record<string, number>>({})
+  const [showForm, setShowForm] = useState(false)
+  const [loadingZones, setLoadingZones] = useState(false)
+  const [savingZone, setSavingZone] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+  const fetchPrices = useCallback(async () => {
+    const { data } = await supabase
+      .from('wood_materials_price')
+      .select('*')
+      .order('category')
+    if (data) setPrices(data as WoodMaterialPrice[])
+  }, [])
+
+  useEffect(() => {
+    fetchPrices()
+  }, [fetchPrices])
+
+  const fetchZones = useCallback(async (siteId: string) => {
+    setLoadingZones(true)
+    setError(null)
+    try {
+      const { data, error } = await supabase
+        .from('wood_zones')
+        .select('*')
+        .eq('siteId', siteId)
+        .order('created_at', { ascending: true })
+      if (error) throw error
+      setZones((data ?? []) as WoodZone[])
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : '구역 로드 실패')
+    } finally {
+      setLoadingZones(false)
+    }
+  }, [])
+
+  function handleLoadSite() {
+    const name = siteInput.trim()
+    if (!name) return
+    setSiteName(name)
+    setZones([])
+    setSelectedId(null)
+    setShowForm(false)
+    fetchZones(name)
+  }
+
+  async function handleSaveZone(
+    data: Omit<WoodZone, 'id' | 'created_at'>,
+    lossRate: number,
+  ) {
+    setSavingZone(true)
+    setError(null)
+    try {
+      const { data: inserted, error } = await supabase
+        .from('wood_zones')
+        .insert([data])
+        .select()
+        .single()
+      if (error) throw error
+      const zone = inserted as WoodZone
+      setZones((prev) => [...prev, zone])
+      setLossRateMap((prev) => ({ ...prev, [zone.id]: lossRate }))
+      setShowForm(false)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : '구역 저장 실패')
+    } finally {
+      setSavingZone(false)
+    }
+  }
+
+  async function handleDeleteZone(id: string) {
+    const { error } = await supabase.from('wood_zones').delete().eq('id', id)
+    if (!error) {
+      setZones((prev) => prev.filter((z) => z.id !== id))
+      if (selectedId === id) setSelectedId(null)
+    }
+  }
+
+  const zoneResults: ZoneResult[] = zones.map((z) =>
+    calcZone(z, prices, lossRateMap[z.id] ?? DEFAULT_LOSS_RATE),
+  )
+  const selectedResult = zoneResults.find((r) => r.zone.id === selectedId) ?? null
+  const { lines: summaryLines, grandTotal } = aggregateZones(zoneResults, [])
+
+  const summaryRows = summaryLines.map((l: SummaryLine) => ({
+    name: l.name,
+    qty: l.totalQty,
+    unit: l.unit,
+    price: l.price,
+    amount: l.totalAmount,
+  }))
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* 헤더 */}
+      <header className="bg-white border-b border-gray-200 px-4 py-4">
+        <div className="max-w-3xl mx-auto">
+          <h1 className="text-xl font-bold text-gray-900 mb-3">목공 산출</h1>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={siteInput}
+              onChange={(e) => setSiteInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleLoadSite()}
+              placeholder="현장명 입력 후 Enter 또는 불러오기"
+              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+            <button
+              onClick={handleLoadSite}
+              className="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors"
+            >
+              불러오기
+            </button>
+          </div>
+          {siteName && (
+            <p className="text-xs text-gray-500 mt-1.5">
+              현장:{' '}
+              <span className="font-semibold text-gray-700">{siteName}</span>
+            </p>
+          )}
         </div>
+      </header>
+
+      {/* 탭 */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-3xl mx-auto flex">
+          {(['자재산출', '단가표관리'] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
+                tab === t
+                  ? 'border-blue-600 text-blue-700'
+                  : 'border-transparent text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 에러 배너 */}
+      {error && (
+        <div className="max-w-3xl mx-auto px-4 mt-3">
+          <div className="bg-red-50 text-red-700 text-sm px-4 py-3 rounded-xl flex items-center justify-between">
+            <span>{error}</span>
+            <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600">
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+
+      <main className="max-w-3xl mx-auto px-4 py-5 space-y-5">
+        {/* ── 자재산출 탭 ── */}
+        {tab === '자재산출' && (
+          <>
+            {/* 구역 목록 */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                <h2 className="text-sm font-semibold text-gray-700">
+                  구역 목록
+                  {zones.length > 0 && (
+                    <span className="ml-1.5 text-gray-400 font-normal">{zones.length}개</span>
+                  )}
+                </h2>
+                <button
+                  onClick={() => {
+                    if (!siteName) {
+                      alert('현장명을 먼저 입력하세요')
+                      return
+                    }
+                    setShowForm((v) => !v)
+                  }}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                >
+                  {showForm ? '닫기' : '+ 구역 추가'}
+                </button>
+              </div>
+
+              {loadingZones ? (
+                <p className="px-4 py-8 text-center text-sm text-gray-400">불러오는 중…</p>
+              ) : zones.length === 0 ? (
+                <p className="px-4 py-8 text-center text-sm text-gray-400">
+                  {siteName
+                    ? '구역이 없습니다. 구역을 추가해 주세요.'
+                    : '현장명을 입력하고 불러오기를 눌러주세요.'}
+                </p>
+              ) : (
+                <ul className="divide-y divide-gray-100">
+                  {zones.map((zone) => {
+                    const area = calcArea(zone.dim1, zone.dim2)
+                    const isSelected = selectedId === zone.id
+                    return (
+                      <li
+                        key={zone.id}
+                        onClick={() => setSelectedId(isSelected ? null : zone.id)}
+                        className={`flex items-center justify-between px-4 py-3 cursor-pointer transition-colors ${
+                          isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span
+                            className={`shrink-0 text-xs font-bold px-2 py-0.5 rounded-full ${
+                              zone.part === '천장'
+                                ? 'bg-sky-100 text-sky-700'
+                                : 'bg-amber-100 text-amber-700'
+                            }`}
+                          >
+                            {zone.part}
+                          </span>
+                          <span className="text-sm font-medium text-gray-800 truncate">
+                            {zone.zone_name}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="text-sm text-gray-500">{area.toFixed(2)} ㎡</span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (confirm(`"${zone.zone_name}" 구역을 삭제할까요?`)) {
+                                handleDeleteZone(zone.id)
+                              }
+                            }}
+                            className="text-gray-300 hover:text-red-500 transition-colors text-xl leading-none"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
+
+            {/* ZoneForm 인라인 */}
+            {showForm && (
+              <div>
+                <p className="text-xs font-semibold text-gray-500 mb-2 px-1">새 구역 추가</p>
+                <ZoneForm
+                  siteId={siteName}
+                  companyId="default"
+                  onSave={handleSaveZone}
+                  onCancel={() => setShowForm(false)}
+                />
+                {savingZone && (
+                  <p className="text-xs text-gray-400 mt-2 text-center">저장 중…</p>
+                )}
+              </div>
+            )}
+
+            {/* 선택 구역 산출 결과 */}
+            {selectedResult && (
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100">
+                  <p className="text-sm font-semibold text-gray-700">
+                    산출 결과 —{' '}
+                    <span className="text-blue-700">{selectedResult.zone.zone_name}</span>
+                    <span className="ml-2 text-gray-400 font-normal">
+                      {selectedResult.areaSqm.toFixed(2)} ㎡
+                    </span>
+                  </p>
+                </div>
+                <MaterialTable rows={selectedResult.materials} />
+              </div>
+            )}
+
+            {/* 전체 합계 */}
+            {zones.length > 0 && (
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100">
+                  <p className="text-sm font-semibold text-gray-700">전체 합계</p>
+                </div>
+                <MaterialTable
+                  rows={summaryRows}
+                  footer={
+                    summaryLines.length > 0 ? (
+                      <tfoot>
+                        <tr className="bg-gray-50 font-semibold">
+                          <td colSpan={4} className="px-4 py-3 text-right text-gray-700">
+                            합계
+                          </td>
+                          <td className="px-4 py-3 text-right text-blue-700">
+                            {grandTotal.toLocaleString()}원
+                          </td>
+                        </tr>
+                      </tfoot>
+                    ) : undefined
+                  }
+                />
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ── 단가표관리 탭 ── */}
+        {tab === '단가표관리' && (
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+            <PriceTable prices={prices} onRefresh={fetchPrices} />
+          </div>
+        )}
       </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
     </div>
-  );
+  )
 }

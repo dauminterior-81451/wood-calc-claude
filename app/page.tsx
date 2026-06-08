@@ -124,7 +124,10 @@ function MaterialTable({
 export default function Home() {
   const [tab, setTab] = useState<'자재산출' | '단가표관리'>('자재산출')
   const [siteName, setSiteName] = useState('')
-  const [siteInput, setSiteInput] = useState('')
+  const [headerMode, setHeaderMode] = useState<null | 'new' | 'load'>(null)
+  const [newSiteInput, setNewSiteInput] = useState('')
+  const [existingSites, setExistingSites] = useState<string[]>([])
+  const [loadingSites, setLoadingSites] = useState(false)
   const [zones, setZones] = useState<WoodZone[]>([])
   const [prices, setPrices] = useState<WoodMaterialPrice[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -164,13 +167,37 @@ export default function Home() {
     }
   }, [])
 
-  function handleLoadSite() {
-    const name = siteInput.trim()
+  async function handleOpenLoad() {
+    setHeaderMode('load')
+    setLoadingSites(true)
+    try {
+      const { data } = await supabase.from('wood_zones').select('siteId')
+      if (data) {
+        const unique = [...new Set((data as { siteId: string }[]).map((r) => r.siteId))].sort()
+        setExistingSites(unique)
+      }
+    } finally {
+      setLoadingSites(false)
+    }
+  }
+
+  function handleConfirmNewSite() {
+    const name = newSiteInput.trim()
     if (!name) return
     setSiteName(name)
     setZones([])
     setSelectedId(null)
     setShowForm(false)
+    setHeaderMode(null)
+    setNewSiteInput('')
+  }
+
+  function handleSelectSite(name: string) {
+    setSiteName(name)
+    setZones([])
+    setSelectedId(null)
+    setShowForm(false)
+    setHeaderMode(null)
     fetchZones(name)
   }
 
@@ -225,27 +252,105 @@ export default function Home() {
       {/* 헤더 */}
       <header className="bg-white border-b border-gray-200 px-4 py-4">
         <div className="max-w-3xl mx-auto">
-          <h1 className="text-xl font-bold text-gray-900 mb-3">목공 산출</h1>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={siteInput}
-              onChange={(e) => setSiteInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleLoadSite()}
-              placeholder="현장명 입력 후 Enter 또는 불러오기"
-              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <button
-              onClick={handleLoadSite}
-              className="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors"
-            >
-              불러오기
-            </button>
+          <div className="flex items-center justify-between mb-3">
+            <h1 className="text-xl font-bold text-gray-900">목공 산출</h1>
+            {siteName && (
+              <button
+                onClick={() => { setSiteName(''); setZones([]); setSelectedId(null); setShowForm(false); setHeaderMode(null) }}
+                className="text-xs text-gray-400 hover:text-gray-600"
+              >
+                현장 변경
+              </button>
+            )}
           </div>
+
+          {/* 현장 미선택: 버튼 2개 */}
+          {!siteName && headerMode === null && (
+            <div className="flex gap-2">
+              <button
+                onClick={() => setHeaderMode('new')}
+                className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors"
+              >
+                + 새 현장
+              </button>
+              <button
+                onClick={handleOpenLoad}
+                className="flex-1 py-2.5 rounded-xl border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                현장 불러오기
+              </button>
+            </div>
+          )}
+
+          {/* 새 현장 입력 */}
+          {headerMode === 'new' && (
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newSiteInput}
+                onChange={(e) => setNewSiteInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleConfirmNewSite()}
+                placeholder="현장명 입력"
+                autoFocus
+                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <button
+                onClick={handleConfirmNewSite}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors"
+              >
+                저장
+              </button>
+              <button
+                onClick={() => { setHeaderMode(null); setNewSiteInput('') }}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                취소
+              </button>
+            </div>
+          )}
+
+          {/* 현장 불러오기 드롭다운 */}
+          {headerMode === 'load' && (
+            <div className="flex gap-2">
+              {loadingSites ? (
+                <p className="text-sm text-gray-400 py-2">불러오는 중…</p>
+              ) : existingSites.length === 0 ? (
+                <div className="flex items-center gap-3">
+                  <p className="text-sm text-gray-400">저장된 현장이 없습니다</p>
+                  <button
+                    onClick={() => setHeaderMode(null)}
+                    className="text-sm text-gray-500 hover:text-gray-700"
+                  >
+                    닫기
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <select
+                    defaultValue=""
+                    onChange={(e) => e.target.value && handleSelectSite(e.target.value)}
+                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  >
+                    <option value="" disabled>현장 선택…</option>
+                    {existingSites.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => setHeaderMode(null)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    취소
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* 현장 선택 완료 */}
           {siteName && (
-            <p className="text-xs text-gray-500 mt-1.5">
-              현장:{' '}
-              <span className="font-semibold text-gray-700">{siteName}</span>
+            <p className="text-xs text-gray-500 mt-1">
+              현장: <span className="font-semibold text-gray-800">{siteName}</span>
             </p>
           )}
         </div>

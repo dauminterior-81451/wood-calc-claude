@@ -17,7 +17,7 @@ export interface WoodZone {
   mdf: boolean
   mdf_thickness: number | null
   plywood_thickness: number | null
-  daruki_gap: 300 | 450
+  daruki_gap: 0 | 300 | 450   // 0 = 없음
   daruki_len: 2400 | 3600
   daruki_manual: number | null   // null = 자동값 사용
   half_sheet: boolean            // 쪽 발주 (엘리베이터 제한)
@@ -116,7 +116,9 @@ export function calcZone(
   lossRate: number = DEFAULT_LOSS_RATE,
 ): ZoneResult {
   const areaSqm = calcArea(zone.dim1, zone.dim2)
-  const darukiAuto = calcDaruki(zone.dim1, zone.dim2, zone.daruki_gap, zone.daruki_len, lossRate)
+  const darukiAuto = zone.daruki_gap > 0
+    ? calcDaruki(zone.dim1, zone.dim2, zone.daruki_gap as 300 | 450, zone.daruki_len, lossRate)
+    : { perimeterCount: 0, ribs: 0, ribCount: 0, totalCount: 0, orderUnit: 0 }
   const materials: MaterialLine[] = []
 
   const find = (category: string, matchFn?: (p: WoodMaterialPrice) => boolean) =>

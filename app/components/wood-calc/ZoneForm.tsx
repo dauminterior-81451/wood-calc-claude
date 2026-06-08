@@ -1,7 +1,15 @@
 'use client'
 
-import { useState } from 'react'
-import { WoodZone, calcArea, calcDaruki, DEFAULT_LOSS_RATE } from '@/app/lib/woodCalc'
+import { useEffect, useState } from 'react'
+import { supabase } from '@/app/lib/supabase'
+import {
+  WoodZone,
+  WoodMaterialPrice,
+  calcArea,
+  calcDaruki,
+  calcZone,
+  DEFAULT_LOSS_RATE,
+} from '@/app/lib/woodCalc'
 
 interface Props {
   siteId: string
@@ -96,19 +104,55 @@ export default function ZoneForm({ siteId, initial, onSave, onCancel }: Props) {
 
   const [halfSheet, setHalfSheet] = useState(initial?.half_sheet ?? false)
 
-  const [darukiGap, setDarukiGap] = useState<300 | 450>(initial?.daruki_gap ?? 300)
+  const [darukiGap, setDarukiGap] = useState<0 | 300 | 450>(initial?.daruki_gap ?? 300)
   const [darukiLen, setDarukiLen] = useState<2400 | 3600>(initial?.daruki_len ?? 2400)
   const [darukiManual, setDarukiManual] = useState(initial?.daruki_manual?.toString() ?? '')
 
-  const [lossRate, setLossRate] = useState(
-    Math.round(DEFAULT_LOSS_RATE * 100).toString(),
-  )
+  const [lossRate, setLossRate] = useState(Math.round(DEFAULT_LOSS_RATE * 100).toString())
+
+  const [prices, setPrices] = useState<WoodMaterialPrice[]>([])
+
+  useEffect(() => {
+    supabase
+      .from('wood_materials_price')
+      .select('*')
+      .then(({ data }) => { if (data) setPrices(data as WoodMaterialPrice[]) })
+  }, [])
 
   const dim1Num = parseFloat(dim1) || 0
   const dim2Num = parseFloat(dim2) || 0
   const lossNum = parseFloat(lossRate) / 100 || DEFAULT_LOSS_RATE
   const area = calcArea(dim1Num, dim2Num)
-  const darukiAuto = calcDaruki(dim1Num, dim2Num, darukiGap, darukiLen, lossNum)
+
+  const darukiAuto =
+    darukiGap > 0 && dim1Num && dim2Num
+      ? calcDaruki(dim1Num, dim2Num, darukiGap as 300 | 450, darukiLen, lossNum)
+      : null
+
+  // 미리보기용 임시 zone 객체
+  const previewMaterials = (() => {
+    if (!dim1Num || !dim2Num) return []
+    const zone: WoodZone = {
+      id: '__preview__',
+      siteId,
+      zone_name: zoneName || '미리보기',
+      part,
+      dim1: dim1Num,
+      dim2: dim2Num,
+      gypsum,
+      gypsum_type: gypsumType,
+      insul_thickness: insulThickness,
+      insul_layer: insulThickness > 0 ? insulLayer : null,
+      mdf,
+      mdf_thickness: mdf ? mdfThickness : null,
+      plywood_thickness: plywoodThickness,
+      daruki_gap: darukiGap,
+      daruki_len: darukiLen,
+      daruki_manual: darukiManual !== '' ? parseFloat(darukiManual) : null,
+      half_sheet: halfSheet,
+    }
+    return calcZone(zone, prices, lossNum).materials
+  })()
 
   function handleSave() {
     if (!zoneName.trim()) {
@@ -311,56 +355,58 @@ export default function ZoneForm({ siteId, initial, onSave, onCancel }: Props) {
       {/* 다루끼 */}
       <Section>
         <Label>다루끼</Label>
-        <div className="flex gap-4 flex-wrap">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500 shrink-0">간격</span>
-            <div className="inline-flex rounded-lg overflow-hidden border border-gray-300">
-              {([300, 450] as const).map((g) => (
-                <SegBtn key={g} active={darukiGap === g} onClick={() => setDarukiGap(g)}>
-                  {g}
-                </SegBtn>
-              ))}
+        <div className="flex gap-2 flex-wrap items-center">
+          <span className="text-xs text-gray-500 shrink-0">간격</span>
+          {([0, 300, 450] as const).map((g) => (
+            <OptionBtn key={g} active={darukiGap === g} onClick={() => setDarukiGap(g)}>
+              {g === 0 ? '없음' : String(g)}
+            </OptionBtn>
+          ))}
+          {darukiGap > 0 && (
+            <>
+              <span className="text-gray-300 text-sm">|</span>
+              <span className="text-xs text-gray-500 shrink-0">길이</span>
+              <div className="inline-flex rounded-lg overflow-hidden border border-gray-300">
+                {([2400, 3600] as const).map((l) => (
+                  <SegBtn key={l} active={darukiLen === l} onClick={() => setDarukiLen(l)}>
+                    {l === 2400 ? '8자' : '12자'}
+                  </SegBtn>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        {darukiGap > 0 && (
+          <div className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-2.5">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-gray-500 mb-0.5">자동계산</p>
+              <p className="text-sm font-semibold text-gray-800">
+                {darukiAuto ? (
+                  <>
+                    {darukiAuto.totalCount}본 →{' '}
+                    <span className="text-blue-700">{darukiAuto.orderUnit}단</span>
+                    <span className="ml-2 text-xs font-normal text-gray-400">
+                      (둘레 {darukiAuto.perimeterCount} + 살 {darukiAuto.ribCount})
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-gray-400">치수 입력 후 표시</span>
+                )}
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-xs text-gray-500">수동</span>
+              <input
+                type="number"
+                value={darukiManual}
+                onChange={(e) => setDarukiManual(e.target.value)}
+                placeholder="단"
+                className="w-16 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500 shrink-0">길이</span>
-            <div className="inline-flex rounded-lg overflow-hidden border border-gray-300">
-              {([2400, 3600] as const).map((l) => (
-                <SegBtn key={l} active={darukiLen === l} onClick={() => setDarukiLen(l)}>
-                  {l === 2400 ? '8자' : '12자'}
-                </SegBtn>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-2.5 mt-2">
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-gray-500 mb-0.5">자동계산</p>
-            <p className="text-sm font-semibold text-gray-800">
-              {dim1Num && dim2Num ? (
-                <>
-                  {darukiAuto.totalCount}본 →{' '}
-                  <span className="text-blue-700">{darukiAuto.orderUnit}단</span>
-                  <span className="ml-2 text-xs font-normal text-gray-400">
-                    (둘레 {darukiAuto.perimeterCount} + 살 {darukiAuto.ribCount})
-                  </span>
-                </>
-              ) : (
-                <span className="text-gray-400">치수 입력 후 표시</span>
-              )}
-            </p>
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span className="text-xs text-gray-500">수동</span>
-            <input
-              type="number"
-              value={darukiManual}
-              onChange={(e) => setDarukiManual(e.target.value)}
-              placeholder="단"
-              className="w-16 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-        </div>
+        )}
       </Section>
 
       {/* 로스율 */}
@@ -378,6 +424,23 @@ export default function ZoneForm({ siteId, initial, onSave, onCancel }: Props) {
           <span className="text-sm text-gray-500">% (기본 10%)</span>
         </div>
       </Section>
+
+      {/* 예상 자재 수량 미리보기 */}
+      {previewMaterials.length > 0 && (
+        <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+          <p className="text-xs font-semibold text-gray-500">예상 자재 수량</p>
+          <div className="space-y-1">
+            {previewMaterials.map((m, i) => (
+              <div key={i} className="flex items-center justify-between text-sm">
+                <span className="text-gray-700">{m.name}</span>
+                <span className="font-semibold text-gray-900 tabular-nums">
+                  {m.qty} <span className="text-gray-400 font-normal">{m.unit}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 저장/취소 */}
       <div className="flex gap-3 pt-1">

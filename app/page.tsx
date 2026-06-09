@@ -284,6 +284,32 @@ export default function Home() {
     }
   }
 
+  async function handleDeleteSite() {
+    if (!confirm('현장과 모든 구역 데이터가 삭제됩니다. 계속하시겠습니까?')) return
+    setError(null)
+    try {
+      const { error: zonesErr } = await supabase
+        .from('wood_zones')
+        .delete()
+        .eq('siteId', siteId)
+      if (zonesErr) throw zonesErr
+      const { error: siteErr } = await supabase
+        .from('wood_sites')
+        .delete()
+        .eq('id', siteId)
+      if (siteErr) throw siteErr
+      setSiteName('')
+      setSiteId('')
+      setZones([])
+      setExpandedId(null)
+      setLossRateMap({})
+      closeForm()
+      setHeaderMode(null)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : '현장 삭제 실패')
+    }
+  }
+
   async function handleDeleteZone(id: string) {
     const { error } = await supabase.from('wood_zones').delete().eq('id', id)
     if (!error) {
@@ -305,7 +331,8 @@ export default function Home() {
   }))
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <>
+      <div className="min-h-screen bg-gray-50">
       {/* 헤더 */}
       <header className="bg-white border-b border-gray-200 px-4 py-4">
         <div className="max-w-3xl mx-auto">
@@ -404,6 +431,12 @@ export default function Home() {
                 className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2"
               >
                 현장 변경
+              </button>
+              <button
+                onClick={handleDeleteSite}
+                className="text-xs text-red-400 hover:text-red-600 underline underline-offset-2"
+              >
+                현장 삭제
               </button>
             </div>
           )}
@@ -582,10 +615,13 @@ export default function Home() {
         )}
       </main>
 
-      {/* ZoneForm 모달 */}
+    </div>
+
+      {/* ZoneForm 모달 — Fragment 최상위에서 렌더링하여 fixed 포지셔닝 보장 */}
       {formMode !== null && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 overflow-y-auto p-4"
+          style={{ position: 'fixed', inset: 0, zIndex: 9999 }}
+          className="flex items-start justify-center bg-black/60 overflow-y-auto p-4"
           onClick={(e) => { if (e.target === e.currentTarget) closeForm() }}
         >
           <div className="w-full max-w-lg my-6">
@@ -593,7 +629,10 @@ export default function Home() {
               <p className="text-sm font-semibold text-white">
                 {formMode === 'edit' ? `수정 — ${editingZone?.zone_name}` : '새 구역 추가'}
               </p>
-              <button onClick={closeForm} className="text-white/70 hover:text-white text-xl leading-none">
+              <button
+                onClick={closeForm}
+                className="text-white/70 hover:text-white text-2xl leading-none w-8 h-8 flex items-center justify-center"
+              >
                 ×
               </button>
             </div>
@@ -611,6 +650,6 @@ export default function Home() {
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }

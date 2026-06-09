@@ -134,6 +134,7 @@ export default function Home() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [lossRateMap, setLossRateMap] = useState<Record<string, number>>({})
   const [showForm, setShowForm] = useState(false)
+  const [formKey, setFormKey] = useState(0)
   const [loadingZones, setLoadingZones] = useState(false)
   const [savingZone, setSavingZone] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -442,6 +443,7 @@ export default function Home() {
                       alert('현장을 먼저 선택하세요')
                       return
                     }
+                    if (!showForm) setFormKey((k) => k + 1)
                     setShowForm((v) => !v)
                   }}
                   className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
@@ -511,6 +513,7 @@ export default function Home() {
               <div>
                 <p className="text-xs font-semibold text-gray-500 mb-2 px-1">새 구역 추가</p>
                 <ZoneForm
+                  key={formKey}
                   siteId={siteId}
                   onSave={handleSaveZone}
                   onCancel={() => setShowForm(false)}

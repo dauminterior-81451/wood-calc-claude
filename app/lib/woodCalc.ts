@@ -124,10 +124,11 @@ export function calcZone(
   const find = (category: string, matchFn?: (p: WoodMaterialPrice) => boolean) =>
     prices.find(p => p.category === category && (matchFn ? matchFn(p) : true))
 
-  const push = (p: WoodMaterialPrice | undefined, qty: number) => {
+  const push = (p: WoodMaterialPrice | undefined, qty: number, suffix?: string) => {
     if (!p || qty <= 0) return
+    const baseName = p.spec ? `${p.name} ${p.spec}` : p.name
     materials.push({
-      name: p.spec ? `${p.name} ${p.spec}` : p.name,
+      name: suffix ? `${baseName} (${suffix})` : baseName,
       qty,
       unit: p.unit,
       price: p.price,
@@ -139,7 +140,7 @@ export function calcZone(
   if (zone.gypsum !== 'none') {
     const keyword = zone.gypsum_type === 'waterproof' ? '방수' : '시트락'
     const p = find('석고보드', p => p.name.includes(keyword))
-    push(p, calcGypsum(areaSqm, zone.gypsum, lossRate))
+    push(p, calcGypsum(areaSqm, zone.gypsum, lossRate), '900×1800mm')
   }
 
   // 단열재 (두께로 spec 매칭)
@@ -149,18 +150,20 @@ export function calcZone(
     push(p, calcInsulation(areaSqm, zone.insul_layer, lossRate))
   }
 
+  const sheetSuffix = zone.half_sheet ? '610×1220mm(쪽)' : '1220×2440mm'
+
   // MDF (mdf_thickness로 spec 매칭)
   if (zone.mdf && zone.mdf_thickness) {
     const thickness = zone.mdf_thickness
     const p = find('MDF', p => p.spec.startsWith(`${thickness}T`))
-    push(p, calcBoard(areaSqm, lossRate, zone.half_sheet))
+    push(p, calcBoard(areaSqm, lossRate, zone.half_sheet), sheetSuffix)
   }
 
   // 합판 (두께로 spec 매칭)
   if (zone.plywood_thickness) {
     const thickness = zone.plywood_thickness
     const p = find('합판', p => p.spec.startsWith(`${thickness}T`))
-    push(p, calcBoard(areaSqm, lossRate, zone.half_sheet))
+    push(p, calcBoard(areaSqm, lossRate, zone.half_sheet), sheetSuffix)
   }
 
   // 다루끼 (수동값 우선, 없으면 자동값)

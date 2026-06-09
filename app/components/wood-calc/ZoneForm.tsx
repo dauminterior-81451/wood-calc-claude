@@ -14,6 +14,7 @@ import {
 interface Props {
   siteId: string
   initial?: Partial<WoodZone>
+  initialLossRate?: number
   onSave: (data: Omit<WoodZone, 'id' | 'created_at'>, lossRate: number) => void
   onCancel?: () => void
 }
@@ -79,7 +80,7 @@ function Section({ children }: { children: React.ReactNode }) {
   return <div className="space-y-1.5">{children}</div>
 }
 
-export default function ZoneForm({ siteId, initial, onSave, onCancel }: Props) {
+export default function ZoneForm({ siteId, initial, initialLossRate, onSave, onCancel }: Props) {
   const [zoneName, setZoneName] = useState(initial?.zone_name ?? '')
   const [part, setPart] = useState<'천장' | '벽'>(initial?.part ?? '천장')
   const [dim1, setDim1] = useState(initial?.dim1?.toString() ?? '')
@@ -108,7 +109,8 @@ export default function ZoneForm({ siteId, initial, onSave, onCancel }: Props) {
   const [darukiLen, setDarukiLen] = useState<2400 | 3600>(initial?.daruki_len ?? 2400)
   const [darukiManual, setDarukiManual] = useState(initial?.daruki_manual?.toString() ?? '')
 
-  const [lossRate, setLossRate] = useState(Math.round(DEFAULT_LOSS_RATE * 100).toString())
+  const initLoss = initialLossRate ?? DEFAULT_LOSS_RATE
+  const [lossRate, setLossRate] = useState(Math.round(initLoss * 100).toString())
 
   const [prices, setPrices] = useState<WoodMaterialPrice[]>([])
 

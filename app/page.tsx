@@ -69,7 +69,7 @@ function PriceTable({
   )
 }
 
-// ─── 자재 테이블 (구역별/합계 공용) ──────────────────────────────────────────
+// ─── 자재 테이블 ──────────────────────────────────────────────────────────────
 
 function MaterialTable({
   rows,
@@ -124,16 +124,17 @@ function MaterialTable({
 export default function Home() {
   const [tab, setTab] = useState<'자재산출' | '단가표관리'>('자재산출')
   const [siteName, setSiteName] = useState('')
-  const [siteId, setSiteId] = useState('')   // wood_sites.id (UUID)
+  const [siteId, setSiteId] = useState('')
   const [headerMode, setHeaderMode] = useState<null | 'new' | 'load'>(null)
   const [newSiteInput, setNewSiteInput] = useState('')
   const [existingSites, setExistingSites] = useState<{ id: string; name: string }[]>([])
   const [loadingSites, setLoadingSites] = useState(false)
   const [zones, setZones] = useState<WoodZone[]>([])
   const [prices, setPrices] = useState<WoodMaterialPrice[]>([])
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
   const [lossRateMap, setLossRateMap] = useState<Record<string, number>>({})
-  const [showForm, setShowForm] = useState(false)
+  const [formMode, setFormMode] = useState<null | 'new' | 'edit'>(null)
+  const [editingZone, setEditingZone] = useState<WoodZone | null>(null)
   const [formKey, setFormKey] = useState(0)
   const [loadingZones, setLoadingZones] = useState(false)
   const [savingZone, setSavingZone] = useState(false)
@@ -151,14 +152,14 @@ export default function Home() {
     fetchPrices()
   }, [fetchPrices])
 
-  const fetchZones = useCallback(async (siteId: string) => {
+  const fetchZones = useCallback(async (id: string) => {
     setLoadingZones(true)
     setError(null)
     try {
       const { data, error } = await supabase
         .from('wood_zones')
         .select('*')
-        .eq('siteId', siteId)
+        .eq('siteId', id)
         .order('created_at', { ascending: true })
       if (error) throw error
       setZones((data ?? []) as WoodZone[])
@@ -168,6 +169,24 @@ export default function Home() {
       setLoadingZones(false)
     }
   }, [])
+
+  function openNewForm() {
+    if (!siteId) { alert('현장을 먼저 선택하세요'); return }
+    setEditingZone(null)
+    setFormKey((k) => k + 1)
+    setFormMode('new')
+  }
+
+  function openEditForm(zone: WoodZone) {
+    setEditingZone(zone)
+    setFormKey((k) => k + 1)
+    setFormMode('edit')
+  }
+
+  function closeForm() {
+    setFormMode(null)
+    setEditingZone(null)
+  }
 
   async function handleOpenLoad() {
     setHeaderMode('load')
@@ -191,29 +210,22 @@ export default function Home() {
     if (!name) return
     setError(null)
     try {
-      console.log('[wood_sites] insert 시도:', { name })
       const { data, error } = await supabase
         .from('wood_sites')
         .insert([{ name }])
         .select('id, name')
         .single()
-      if (error) {
-        console.error('[wood_sites] insert 에러:', error)
-        throw error
-      }
-      console.log('[wood_sites] insert 성공:', data)
+      if (error) throw error
       const site = data as { id: string; name: string }
       setSiteName(site.name)
       setSiteId(site.id)
       setZones([])
-      setSelectedId(null)
-      setShowForm(false)
+      setExpandedId(null)
+      closeForm()
       setHeaderMode(null)
       setNewSiteInput('')
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : '현장 저장 실패'
-      console.error('[wood_sites] 저장 실패:', e)
-      setError(msg)
+      setError(e instanceof Error ? e.message : '현장 저장 실패')
     }
   }
 
@@ -221,8 +233,8 @@ export default function Home() {
     setSiteName(name)
     setSiteId(id)
     setZones([])
-    setSelectedId(null)
-    setShowForm(false)
+    setExpandedId(null)
+    closeForm()
     setHeaderMode(null)
     fetchZones(id)
   }
@@ -234,26 +246,37 @@ export default function Home() {
     setSavingZone(true)
     setError(null)
     try {
-      console.log('[wood_zones] insert 시도:', JSON.stringify(data, null, 2))
-      const { data: inserted, error } = await supabase
-        .from('wood_zones')
-        .insert([data])
-        .select()
-        .single()
-      if (error) {
-        console.error('[wood_zones] insert 에러:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code,
-        })
-        throw error
+      if (editingZone) {
+        const { data: updated, error } = await supabase
+          .from('wood_zones')
+          .update(data)
+          .eq('id', editingZone.id)
+          .select()
+          .single()
+        if (error) throw error
+        const zone = updated as WoodZone
+        setZones((prev) => prev.map((z) => (z.id === zone.id ? zone : z)))
+        setLossRateMap((prev) => ({ ...prev, [zone.id]: lossRate }))
+      } else {
+        const { data: inserted, error } = await supabase
+          .from('wood_zones')
+          .insert([data])
+          .select()
+          .single()
+        if (error) {
+          console.error('[wood_zones] insert 에러:', {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code,
+          })
+          throw error
+        }
+        const zone = inserted as WoodZone
+        setZones((prev) => [...prev, zone])
+        setLossRateMap((prev) => ({ ...prev, [zone.id]: lossRate }))
       }
-      console.log('[wood_zones] insert 성공:', inserted)
-      const zone = inserted as WoodZone
-      setZones((prev) => [...prev, zone])
-      setLossRateMap((prev) => ({ ...prev, [zone.id]: lossRate }))
-      setShowForm(false)
+      closeForm()
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : '구역 저장 실패')
     } finally {
@@ -265,16 +288,14 @@ export default function Home() {
     const { error } = await supabase.from('wood_zones').delete().eq('id', id)
     if (!error) {
       setZones((prev) => prev.filter((z) => z.id !== id))
-      if (selectedId === id) setSelectedId(null)
+      if (expandedId === id) setExpandedId(null)
     }
   }
 
   const zoneResults: ZoneResult[] = zones.map((z) =>
     calcZone(z, prices, lossRateMap[z.id] ?? DEFAULT_LOSS_RATE),
   )
-  const selectedResult = zoneResults.find((r) => r.zone.id === selectedId) ?? null
   const { lines: summaryLines, grandTotal } = aggregateZones(zoneResults, [])
-
   const summaryRows = summaryLines.map((l: SummaryLine) => ({
     name: l.name,
     qty: l.totalQty,
@@ -290,7 +311,6 @@ export default function Home() {
         <div className="max-w-3xl mx-auto">
           <h1 className="text-xl font-bold text-gray-900 mb-3">목공 산출</h1>
 
-          {/* 현장 미선택: 버튼 2개 */}
           {!siteName && headerMode === null && (
             <div className="flex gap-2">
               <button
@@ -308,7 +328,6 @@ export default function Home() {
             </div>
           )}
 
-          {/* 새 현장 입력 */}
           {headerMode === 'new' && (
             <div className="flex gap-2">
               <input
@@ -335,7 +354,6 @@ export default function Home() {
             </div>
           )}
 
-          {/* 현장 불러오기 드롭다운 */}
           {headerMode === 'load' && (
             <div className="flex gap-2">
               {loadingSites ? (
@@ -343,10 +361,7 @@ export default function Home() {
               ) : existingSites.length === 0 ? (
                 <div className="flex items-center gap-3">
                   <p className="text-sm text-gray-400">저장된 현장이 없습니다</p>
-                  <button
-                    onClick={() => setHeaderMode(null)}
-                    className="text-sm text-gray-500 hover:text-gray-700"
-                  >
+                  <button onClick={() => setHeaderMode(null)} className="text-sm text-gray-500 hover:text-gray-700">
                     닫기
                   </button>
                 </div>
@@ -376,14 +391,16 @@ export default function Home() {
             </div>
           )}
 
-          {/* 현장 선택 완료 */}
           {siteName && (
             <div className="flex items-center gap-3">
               <p className="text-sm text-gray-700">
                 현장: <span className="font-semibold">{siteName}</span>
               </p>
               <button
-                onClick={() => { setSiteName(''); setSiteId(''); setZones([]); setSelectedId(null); setShowForm(false); setHeaderMode(null) }}
+                onClick={() => {
+                  setSiteName(''); setSiteId(''); setZones([])
+                  setExpandedId(null); closeForm(); setHeaderMode(null)
+                }}
                 className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2"
               >
                 현장 변경
@@ -417,15 +434,12 @@ export default function Home() {
         <div className="max-w-3xl mx-auto px-4 mt-3">
           <div className="bg-red-50 text-red-700 text-sm px-4 py-3 rounded-xl flex items-center justify-between">
             <span>{error}</span>
-            <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600">
-              ×
-            </button>
+            <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600">×</button>
           </div>
         </div>
       )}
 
       <main className="max-w-3xl mx-auto px-4 py-5 space-y-5">
-        {/* ── 자재산출 탭 ── */}
         {tab === '자재산출' && (
           <>
             {/* 구역 목록 */}
@@ -438,17 +452,10 @@ export default function Home() {
                   )}
                 </h2>
                 <button
-                  onClick={() => {
-                    if (!siteId) {
-                      alert('현장을 먼저 선택하세요')
-                      return
-                    }
-                    if (!showForm) setFormKey((k) => k + 1)
-                    setShowForm((v) => !v)
-                  }}
+                  onClick={openNewForm}
                   className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
                 >
-                  {showForm ? '닫기' : '+ 구역 추가'}
+                  + 구역 추가
                 </button>
               </div>
 
@@ -464,43 +471,75 @@ export default function Home() {
                 <ul className="divide-y divide-gray-100">
                   {zones.map((zone) => {
                     const area = calcArea(zone.dim1, zone.dim2)
-                    const isSelected = selectedId === zone.id
+                    const isExpanded = expandedId === zone.id
+                    const result = zoneResults.find((r) => r.zone.id === zone.id)
                     return (
-                      <li
-                        key={zone.id}
-                        onClick={() => setSelectedId(isSelected ? null : zone.id)}
-                        className={`flex items-center justify-between px-4 py-3 cursor-pointer transition-colors ${
-                          isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <span
-                            className={`shrink-0 text-xs font-bold px-2 py-0.5 rounded-full ${
-                              zone.part === '천장'
-                                ? 'bg-sky-100 text-sky-700'
-                                : 'bg-amber-100 text-amber-700'
-                            }`}
-                          >
-                            {zone.part}
-                          </span>
-                          <span className="text-sm font-medium text-gray-800 truncate">
-                            {zone.zone_name}
-                          </span>
+                      <li key={zone.id}>
+                        {/* 구역 행 */}
+                        <div
+                          onClick={() => setExpandedId(isExpanded ? null : zone.id)}
+                          className={`flex items-center justify-between px-4 py-3 cursor-pointer transition-colors ${
+                            isExpanded ? 'bg-blue-50' : 'hover:bg-gray-50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span
+                              className={`shrink-0 text-xs font-bold px-2 py-0.5 rounded-full ${
+                                zone.part === '천장'
+                                  ? 'bg-sky-100 text-sky-700'
+                                  : 'bg-amber-100 text-amber-700'
+                              }`}
+                            >
+                              {zone.part}
+                            </span>
+                            <span className="text-sm font-medium text-gray-800 truncate">
+                              {zone.zone_name}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <span className="text-sm text-gray-500 mr-1">{area.toFixed(2)} ㎡</span>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); openEditForm(zone) }}
+                              className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded-md hover:bg-blue-50"
+                              title="수정"
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                if (confirm(`"${zone.zone_name}" 구역을 삭제할까요?`)) {
+                                  handleDeleteZone(zone.id)
+                                }
+                              }}
+                              className="p-1.5 text-gray-300 hover:text-red-500 transition-colors rounded-md hover:bg-red-50 text-xl leading-none"
+                              title="삭제"
+                            >
+                              ×
+                            </button>
+                            <span className={`ml-1 text-gray-400 text-xs transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
+                              ▼
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          <span className="text-sm text-gray-500">{area.toFixed(2)} ㎡</span>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              if (confirm(`"${zone.zone_name}" 구역을 삭제할까요?`)) {
-                                handleDeleteZone(zone.id)
-                              }
-                            }}
-                            className="text-gray-300 hover:text-red-500 transition-colors text-xl leading-none"
-                          >
-                            ×
-                          </button>
-                        </div>
+
+                        {/* 아코디언 산출결과 */}
+                        {isExpanded && result && (
+                          <div className="border-t border-blue-100 bg-blue-50/30">
+                            <div className="px-4 py-2 flex items-center justify-between">
+                              <p className="text-xs font-semibold text-blue-700">
+                                산출 결과
+                                <span className="ml-1.5 font-normal text-blue-500">
+                                  {result.areaSqm.toFixed(2)} ㎡
+                                </span>
+                              </p>
+                              <p className="text-xs font-semibold text-blue-700">
+                                {result.materials.reduce((s, m) => s + m.amount, 0).toLocaleString()}원
+                              </p>
+                            </div>
+                            <MaterialTable rows={result.materials} />
+                          </div>
+                        )}
                       </li>
                     )
                   })}
@@ -508,39 +547,7 @@ export default function Home() {
               )}
             </div>
 
-            {/* ZoneForm 인라인 */}
-            {showForm && (
-              <div>
-                <p className="text-xs font-semibold text-gray-500 mb-2 px-1">새 구역 추가</p>
-                <ZoneForm
-                  key={formKey}
-                  siteId={siteId}
-                  onSave={handleSaveZone}
-                  onCancel={() => setShowForm(false)}
-                />
-                {savingZone && (
-                  <p className="text-xs text-gray-400 mt-2 text-center">저장 중…</p>
-                )}
-              </div>
-            )}
-
-            {/* 선택 구역 산출 결과 */}
-            {selectedResult && (
-              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-100">
-                  <p className="text-sm font-semibold text-gray-700">
-                    산출 결과 —{' '}
-                    <span className="text-blue-700">{selectedResult.zone.zone_name}</span>
-                    <span className="ml-2 text-gray-400 font-normal">
-                      {selectedResult.areaSqm.toFixed(2)} ㎡
-                    </span>
-                  </p>
-                </div>
-                <MaterialTable rows={selectedResult.materials} />
-              </div>
-            )}
-
-            {/* 전체 합계 */}
+            {/* 전체 합계 — 항상 구역 목록 아래 */}
             {zones.length > 0 && (
               <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-100">
@@ -568,13 +575,42 @@ export default function Home() {
           </>
         )}
 
-        {/* ── 단가표관리 탭 ── */}
         {tab === '단가표관리' && (
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
             <PriceTable prices={prices} onRefresh={fetchPrices} />
           </div>
         )}
       </main>
+
+      {/* ZoneForm 모달 */}
+      {formMode !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 overflow-y-auto p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) closeForm() }}
+        >
+          <div className="w-full max-w-lg my-6">
+            <div className="flex items-center justify-between mb-2 px-1">
+              <p className="text-sm font-semibold text-white">
+                {formMode === 'edit' ? `수정 — ${editingZone?.zone_name}` : '새 구역 추가'}
+              </p>
+              <button onClick={closeForm} className="text-white/70 hover:text-white text-xl leading-none">
+                ×
+              </button>
+            </div>
+            <ZoneForm
+              key={formKey}
+              siteId={siteId}
+              initial={editingZone ?? undefined}
+              initialLossRate={editingZone ? (lossRateMap[editingZone.id] ?? DEFAULT_LOSS_RATE) : undefined}
+              onSave={handleSaveZone}
+              onCancel={closeForm}
+            />
+            {savingZone && (
+              <p className="text-xs text-white/70 mt-2 text-center">저장 중…</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

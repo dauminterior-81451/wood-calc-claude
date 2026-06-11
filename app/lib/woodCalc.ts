@@ -147,7 +147,7 @@ export function calcZone(
   if (zone.insul_thickness > 0 && zone.insul_layer) {
     const thickness = zone.insul_thickness
     const p = find('단열재', p => p.spec.startsWith(`${thickness}T`))
-    push(p, calcInsulation(areaSqm, zone.insul_layer, lossRate))
+    push(p, calcInsulation(areaSqm, zone.insul_layer, lossRate), '900×1800mm')
   }
 
   const sheetSuffix = zone.half_sheet ? '610×1220mm(쪽)' : '1220×2440mm'

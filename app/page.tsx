@@ -321,7 +321,7 @@ export default function Home() {
 
   function handleCopy() {
     const sep = '─────────────────'
-    const dw = (s: string) => [...s].reduce((w, ch) => w + (ch.charCodeAt(0) > 0xFF ? 2 : 1), 0)
+    const dw = (s: string) => Array.from(s).reduce((w, ch) => w + (ch.charCodeAt(0) > 0xFF ? 2 : 1), 0)
     const pad = (s: string, width: number) => s + ' '.repeat(Math.max(0, width - dw(s)))
     const nameWidth = summaryRows.length > 0 ? Math.max(...summaryRows.map(r => dw(r.name))) + 2 : 20
     const lines = [

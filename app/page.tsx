@@ -139,6 +139,7 @@ export default function Home() {
   const [loadingZones, setLoadingZones] = useState(false)
   const [savingZone, setSavingZone] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
 
   const fetchPrices = useCallback(async () => {
     const { data } = await supabase
@@ -316,6 +317,24 @@ export default function Home() {
       setZones((prev) => prev.filter((z) => z.id !== id))
       if (expandedId === id) setExpandedId(null)
     }
+  }
+
+  function handleCopy() {
+    const sep = '─────────────────'
+    const dw = (s: string) => [...s].reduce((w, ch) => w + (ch.charCodeAt(0) > 0xFF ? 2 : 1), 0)
+    const pad = (s: string, width: number) => s + ' '.repeat(Math.max(0, width - dw(s)))
+    const nameWidth = summaryRows.length > 0 ? Math.max(...summaryRows.map(r => dw(r.name))) + 2 : 20
+    const lines = [
+      `[${siteName}] 목공 자재 발주`,
+      sep,
+      ...summaryRows.map(r => `${pad(r.name, nameWidth)}${r.qty}${r.unit}`),
+      sep,
+      `합계: ${grandTotal.toLocaleString()}원`,
+    ]
+    navigator.clipboard.writeText(lines.join('\n')).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
   }
 
   const zoneResults: ZoneResult[] = zones.map((z) =>
@@ -603,6 +622,20 @@ export default function Home() {
                     ) : undefined
                   }
                 />
+                {summaryRows.length > 0 && (
+                  <div className="px-4 py-3 border-t border-gray-100 flex justify-end">
+                    <button
+                      onClick={handleCopy}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        copied
+                          ? 'bg-green-600 text-white'
+                          : 'bg-gray-800 text-white hover:bg-gray-900'
+                      }`}
+                    >
+                      {copied ? '복사됨 ✓' : '발주용 복사'}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '@/app/lib/supabase'
 import {
   WoodZone,
@@ -108,6 +108,12 @@ export default function ZoneForm({ siteId, initial, initialLossRate, onSave, onC
   const [darukiGap, setDarukiGap] = useState<0 | 300 | 450>(initial?.daruki_gap ?? 300)
   const [darukiLen, setDarukiLen] = useState<2400 | 3600>(initial?.daruki_len ?? 2400)
   const [darukiManual, setDarukiManual] = useState(initial?.daruki_manual?.toString() ?? '')
+
+  const partMounted = useRef(false)
+  useEffect(() => {
+    if (!partMounted.current) { partMounted.current = true; return }
+    setDarukiLen(part === '천장' ? 3600 : 2400)
+  }, [part])
 
   const initLoss = initialLossRate ?? DEFAULT_LOSS_RATE
   const [lossRate, setLossRate] = useState(Math.round(initLoss * 100).toString())

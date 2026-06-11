@@ -654,10 +654,11 @@ export default function Home() {
       {formMode !== null && (
         <div
           style={{ position: 'fixed', inset: 0, zIndex: 9999 }}
-          className="flex items-start justify-center bg-black/60 overflow-y-auto p-4"
+          className="bg-black/60 overflow-y-auto"
           onClick={(e) => { if (e.target === e.currentTarget) closeForm() }}
         >
-          <div className="w-full max-w-lg my-6">
+          <div className="flex min-h-full items-start justify-center px-4 py-10">
+          <div className="w-full max-w-lg">
             <div className="flex items-center justify-between mb-2 px-1">
               <p className="text-sm font-semibold text-white">
                 {formMode === 'edit' ? `수정 — ${editingZone?.zone_name}` : '새 구역 추가'}
@@ -680,6 +681,7 @@ export default function Home() {
             {savingZone && (
               <p className="text-xs text-white/70 mt-2 text-center">저장 중…</p>
             )}
+          </div>
           </div>
         </div>
       )}

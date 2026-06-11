@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/app/lib/supabase'
 import ZoneForm from '@/app/components/wood-calc/ZoneForm'
+import PriceManager from '@/app/components/wood-calc/PriceManager'
 import {
   WoodZone,
   WoodMaterialPrice,
@@ -13,61 +14,6 @@ import {
   aggregateZones,
   DEFAULT_LOSS_RATE,
 } from '@/app/lib/woodCalc'
-
-// ─── 단가표관리 탭 ────────────────────────────────────────────────────────────
-
-function PriceTable({
-  prices,
-  onRefresh,
-}: {
-  prices: WoodMaterialPrice[]
-  onRefresh: () => void
-}) {
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">{prices.length}개 자재</p>
-        <button onClick={onRefresh} className="text-sm text-blue-600 hover:underline">
-          새로고침
-        </button>
-      </div>
-      <div className="overflow-x-auto rounded-xl border border-gray-200">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
-            <tr>
-              <th className="px-4 py-3 text-left">자재명</th>
-              <th className="px-4 py-3 text-left">규격</th>
-              <th className="px-4 py-3 text-left">카테고리</th>
-              <th className="px-4 py-3 text-right">단가</th>
-              <th className="px-4 py-3 text-left">단위</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {prices.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
-                  단가 데이터가 없습니다
-                </td>
-              </tr>
-            ) : (
-              prices.map((p) => (
-                <tr key={p.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-2.5 font-medium text-gray-800">{p.name}</td>
-                  <td className="px-4 py-2.5 text-gray-600">{p.spec}</td>
-                  <td className="px-4 py-2.5 text-gray-500">{p.category}</td>
-                  <td className="px-4 py-2.5 text-right text-gray-800">
-                    {p.price.toLocaleString()}
-                  </td>
-                  <td className="px-4 py-2.5 text-gray-500">{p.unit}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  )
-}
 
 // ─── 자재 테이블 ──────────────────────────────────────────────────────────────
 
@@ -641,11 +587,7 @@ export default function Home() {
           </>
         )}
 
-        {tab === '단가표관리' && (
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-            <PriceTable prices={prices} onRefresh={fetchPrices} />
-          </div>
-        )}
+        {tab === '단가표관리' && <PriceManager />}
       </main>
 
     </div>

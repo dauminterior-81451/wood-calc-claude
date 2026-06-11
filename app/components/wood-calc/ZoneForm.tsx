@@ -227,19 +227,19 @@ export default function ZoneForm({ siteId, initial, initialLossRate, onSave, onC
             value={dim1}
             onChange={(e) => setDim1(e.target.value)}
             placeholder={part === '천장' ? '가로' : '폭'}
-            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          <span className="text-gray-400 font-bold text-lg">×</span>
+          <span className="text-gray-400 font-bold text-lg shrink-0">×</span>
           <input
             type="number"
             value={dim2}
             onChange={(e) => setDim2(e.target.value)}
             placeholder={part === '천장' ? '세로' : '높이'}
-            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          <div className="shrink-0 bg-blue-50 text-blue-700 font-semibold text-sm px-3 py-2 rounded-lg min-w-[72px] text-center">
-            {area > 0 ? `${area.toFixed(2)} ㎡` : '— ㎡'}
-          </div>
+        </div>
+        <div className="bg-blue-50 text-blue-700 font-semibold text-sm px-3 py-2 rounded-lg text-center">
+          {area > 0 ? `${area.toFixed(2)} ㎡` : '— ㎡'}
         </div>
       </Section>
 

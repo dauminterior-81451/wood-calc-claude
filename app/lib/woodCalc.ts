@@ -49,18 +49,20 @@ export interface DarukiCalc {
 
 export interface WoodMaterialPrice {
   id: string
+  category: string
+  vendor: string
   name: string
   spec: string
-  category: string
   calc_type: string
   cover_m2: number | null
   unit: string
   price: number
   note: string
+  updated_at?: string
 }
 
 export interface ManualItem {
-  priceId: string    // wood_materials_price.id
+  priceId: string    // materials_price.id
   name: string
   spec: string
   unit: string

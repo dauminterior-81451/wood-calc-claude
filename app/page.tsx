@@ -89,9 +89,10 @@ export default function Home() {
 
   const fetchPrices = useCallback(async () => {
     const { data } = await supabase
-      .from('wood_materials_price')
+      .from('materials_price')
       .select('*')
-      .order('category')
+      .eq('category', '목자재')
+      .order('name')
     if (data) setPrices(data as WoodMaterialPrice[])
   }, [])
 

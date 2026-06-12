@@ -122,8 +122,9 @@ export default function ZoneForm({ siteId, initial, initialLossRate, onSave, onC
 
   useEffect(() => {
     supabase
-      .from('wood_materials_price')
+      .from('materials_price')
       .select('*')
+      .eq('category', '목자재')
       .then(({ data }) => { if (data) setPrices(data as WoodMaterialPrice[]) })
   }, [])
 

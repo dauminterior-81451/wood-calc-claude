@@ -13,6 +13,7 @@ interface ParsedItem {
 interface ComparisonItem extends ParsedItem {
   status: 'same' | 'changed' | 'new'
   old_price?: number
+  selected: boolean
 }
 
 interface MaterialsPrice {
@@ -136,10 +137,10 @@ export async function POST(req: NextRequest) {
       const match = existingRows.find(
         r => normalize(r.name) === normName && normalize(r.spec) === normSpec,
       )
-      if (!match) return { ...item, status: 'new' as const }
+      if (!match) return { ...item, status: 'new' as const, selected: false }
       if (match.price !== item.unit_price)
-        return { ...item, status: 'changed' as const, old_price: match.price }
-      return { ...item, status: 'same' as const }
+        return { ...item, status: 'changed' as const, old_price: match.price, selected: true }
+      return { ...item, status: 'same' as const, selected: false }
     })
 
     return NextResponse.json({ parsed, comparison })

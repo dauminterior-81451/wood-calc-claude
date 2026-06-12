@@ -35,6 +35,15 @@ interface ComparisonItem {
   amount: number
   status: 'same' | 'changed' | 'new'
   old_price?: number
+  selected: boolean
+}
+
+interface HistoryItem {
+  id: string
+  old_price: number
+  new_price: number
+  source: string
+  created_at: string
 }
 
 export default function PriceManager() {
@@ -54,6 +63,8 @@ export default function PriceManager() {
   const [comparisonItems, setComparisonItems] = useState<ComparisonItem[]>([])
   const [selectedIndexes, setSelectedIndexes] = useState<Set<number>>(new Set())
   const [applying, setApplying] = useState(false)
+  const [historyPopup, setHistoryPopup] = useState<{ row: MaterialsPrice; items: HistoryItem[] } | null>(null)
+  const [historyLoading, setHistoryLoading] = useState(false)
 
   useEffect(() => {
     fetchRows(activeCategory)
@@ -157,7 +168,7 @@ export default function PriceManager() {
       setComparisonItems(items)
 
       const defaultSelected = new Set<number>()
-      items.forEach((item, i) => { if (item.status !== 'same') defaultSelected.add(i) })
+      items.forEach((item, i) => { if (item.selected) defaultSelected.add(i) })
       setSelectedIndexes(defaultSelected)
       setShowModal(true)
     } catch (e: unknown) {
@@ -220,6 +231,25 @@ export default function PriceManager() {
       setError(e instanceof Error ? e.message : '적용 실패')
     } finally {
       setApplying(false)
+    }
+  }
+
+  async function handleShowHistory(row: MaterialsPrice) {
+    setHistoryLoading(true)
+    setHistoryPopup({ row, items: [] })
+    try {
+      const { data, error } = await supabase
+        .from('materials_price_history')
+        .select('id, old_price, new_price, source, created_at')
+        .eq('price_id', row.id)
+        .order('created_at', { ascending: false })
+        .limit(20)
+      if (error) throw error
+      setHistoryPopup({ row, items: (data ?? []) as HistoryItem[] })
+    } catch {
+      setHistoryPopup({ row, items: [] })
+    } finally {
+      setHistoryLoading(false)
     }
   }
 
@@ -308,7 +338,7 @@ export default function PriceManager() {
                 <th className="px-4 py-2.5 text-left">규격</th>
                 <th className="px-4 py-2.5 text-left">단위</th>
                 <th className="px-4 py-2.5 text-right">단가</th>
-                <th className="px-4 py-2.5 w-8"></th>
+                <th className="px-4 py-2.5 w-16"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -399,15 +429,24 @@ export default function PriceManager() {
                       </button>
                     )}
                   </td>
-                  <td className="px-4 py-2.5 text-center">
-                    <button
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => handleDeleteRow(row.id)}
-                      className="text-gray-300 hover:text-red-500 transition-colors text-xl leading-none"
-                      title="삭제"
-                    >
-                      ×
-                    </button>
+                  <td className="px-3 py-2.5 text-center">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <button
+                        onClick={() => handleShowHistory(row)}
+                        className="text-gray-300 hover:text-blue-500 transition-colors text-base leading-none"
+                        title="가격 이력"
+                      >
+                        📋
+                      </button>
+                      <button
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => handleDeleteRow(row.id)}
+                        className="text-gray-300 hover:text-red-500 transition-colors text-xl leading-none"
+                        title="삭제"
+                      >
+                        ×
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -415,6 +454,74 @@ export default function PriceManager() {
           </table>
         </div>
       </div>
+
+      {/* 가격 이력 팝업 */}
+      {historyPopup && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-xl flex flex-col max-h-[70vh]">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div>
+                <p className="font-semibold text-gray-800">{historyPopup.row.name} 가격 이력</p>
+                {historyPopup.row.spec && (
+                  <p className="text-xs text-gray-400 mt-0.5">{historyPopup.row.spec}</p>
+                )}
+              </div>
+              <button
+                onClick={() => setHistoryPopup(null)}
+                className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1">
+              {historyLoading ? (
+                <div className="flex items-center justify-center py-10 text-gray-400 text-sm gap-2">
+                  <span className="inline-block w-4 h-4 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
+                  불러오는 중...
+                </div>
+              ) : historyPopup.items.length === 0 ? (
+                <p className="text-center text-gray-400 text-sm py-10">이력이 없습니다.</p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-xs text-gray-500 sticky top-0">
+                    <tr>
+                      <th className="px-4 py-2.5 text-left">변경일</th>
+                      <th className="px-4 py-2.5 text-right">이전</th>
+                      <th className="px-4 py-2.5 text-right">변경 후</th>
+                      <th className="px-4 py-2.5 text-center">출처</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {historyPopup.items.map((h) => (
+                      <tr key={h.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-2.5 text-gray-500 tabular-nums whitespace-nowrap">
+                          {new Date(h.created_at).toLocaleDateString('ko-KR', { year: '2-digit', month: '2-digit', day: '2-digit' })}
+                        </td>
+                        <td className="px-4 py-2.5 text-right tabular-nums text-gray-400 line-through">
+                          {h.old_price.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2.5 text-right tabular-nums font-medium text-gray-800">
+                          {h.new_price.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2.5 text-center">
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                            h.source === 'invoice'
+                              ? 'bg-blue-100 text-blue-600'
+                              : 'bg-gray-100 text-gray-500'
+                          }`}>
+                            {h.source === 'invoice' ? '견적서' : '수동'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 비교 결과 모달 */}
       {showModal && (

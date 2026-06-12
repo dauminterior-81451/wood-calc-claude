@@ -208,20 +208,6 @@ export default function PriceManager() {
             .from('materials_price_history')
             .insert([{ price_id: match.id, old_price: match.price, new_price: item.unit_price, source: 'invoice' }])
           if (histErr) throw histErr
-        } else if (item.status === 'new') {
-          const { error: insertErr } = await supabase
-            .from('materials_price')
-            .insert([{
-              category: activeCategory,
-              vendor: '',
-              name: item.name,
-              spec: item.spec ?? '',
-              calc_type: 'ea',
-              unit: '식',
-              price: item.unit_price,
-              note: '',
-            }])
-          if (insertErr) throw insertErr
         }
       }
 
@@ -530,10 +516,9 @@ export default function PriceManager() {
             {/* 헤더 */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <div>
-                <p className="font-semibold text-gray-800">견적서 파싱 결과</p>
+                <p className="font-semibold text-gray-800">단가 변경 확인</p>
                 <p className="text-xs text-gray-400 mt-0.5">
                   {comparisonItems.filter(i => i.status === 'changed').length}개 변경 ·{' '}
-                  {comparisonItems.filter(i => i.status === 'new').length}개 신규 ·{' '}
                   {comparisonItems.filter(i => i.status === 'same').length}개 동일
                 </p>
               </div>
@@ -545,71 +530,49 @@ export default function PriceManager() {
               </button>
             </div>
 
-            {/* 목록 */}
-            <div className="overflow-y-auto flex-1 divide-y divide-gray-100">
-              {comparisonItems.map((item, i) => {
-                const isSelectable = item.status !== 'same'
-                const isSelected = selectedIndexes.has(i)
+            {/* 안내 문구 */}
+            <div className="px-5 py-2.5 bg-blue-50 border-b border-blue-100">
+              <p className="text-xs text-blue-600">
+                단가가 변경된 항목만 표시됩니다. 새 자재는 <strong>+ 추가</strong> 버튼으로 직접 등록하세요.
+              </p>
+            </div>
 
-                return (
-                  <label
-                    key={i}
-                    className={`flex items-start gap-3 px-5 py-3.5 cursor-pointer transition-colors ${
-                      isSelectable ? 'hover:bg-gray-50' : 'cursor-default'
-                    }`}
-                  >
-                    {isSelectable ? (
+            {/* 목록: changed만 표시 */}
+            <div className="overflow-y-auto flex-1 divide-y divide-gray-100">
+              {comparisonItems.filter(item => item.status === 'changed').length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-gray-400 gap-2">
+                  <span className="text-2xl">✓</span>
+                  <p className="text-sm">단가 변경 없음</p>
+                </div>
+              ) : (
+                comparisonItems.map((item, i) => {
+                  if (item.status !== 'changed') return null
+                  const isSelected = selectedIndexes.has(i)
+                  return (
+                    <label key={i} className="flex items-start gap-3 px-5 py-3.5 cursor-pointer hover:bg-gray-50 transition-colors">
                       <input
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => toggleSelect(i)}
                         className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 shrink-0"
                       />
-                    ) : (
-                      <span className="mt-0.5 h-4 w-4 shrink-0" />
-                    )}
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium text-gray-800 text-sm">{item.name}</span>
-                        {item.spec && (
-                          <span className="text-xs text-gray-400">{item.spec}</span>
-                        )}
-                        {item.status === 'same' && (
-                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">동일</span>
-                        )}
-                        {item.status === 'changed' && (
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-gray-800 text-sm">{item.name}</span>
+                          {item.spec && <span className="text-xs text-gray-400">{item.spec}</span>}
                           <span className="text-xs px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600">변경</span>
-                        )}
-                        {item.status === 'new' && (
-                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-100 text-green-600">신규</span>
-                        )}
+                        </div>
+                        <div className="mt-1 text-sm text-orange-600 tabular-nums">
+                          <span className="line-through text-gray-400 mr-1">
+                            {(item.old_price ?? 0).toLocaleString()}원
+                          </span>
+                          → {item.unit_price.toLocaleString()}원
+                        </div>
                       </div>
-
-                      <div className="mt-1 text-sm">
-                        {item.status === 'same' && (
-                          <span className="text-gray-400 tabular-nums">
-                            {item.unit_price.toLocaleString()}원
-                          </span>
-                        )}
-                        {item.status === 'changed' && (
-                          <span className="text-orange-600 tabular-nums">
-                            <span className="line-through text-gray-400 mr-1">
-                              {(item.old_price ?? 0).toLocaleString()}원
-                            </span>
-                            → {item.unit_price.toLocaleString()}원
-                          </span>
-                        )}
-                        {item.status === 'new' && (
-                          <span className="text-green-600 tabular-nums font-medium">
-                            {item.unit_price.toLocaleString()}원
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </label>
-                )
-              })}
+                    </label>
+                  )
+                })
+              )}
             </div>
 
             {/* 하단 버튼 */}

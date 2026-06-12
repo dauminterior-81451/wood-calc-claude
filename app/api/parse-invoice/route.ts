@@ -131,17 +131,19 @@ export async function POST(req: NextRequest) {
 
     const existingRows = (existing ?? []) as MaterialsPrice[]
 
-    const comparison: ComparisonItem[] = parsed.map(item => {
-      const normName = normalize(item.name)
-      const normSpec = normalize(item.spec)
-      const match = existingRows.find(
-        r => normalize(r.name) === normName && normalize(r.spec) === normSpec,
-      )
-      if (!match) return { ...item, status: 'new' as const, selected: false }
-      if (match.price !== item.unit_price)
-        return { ...item, status: 'changed' as const, old_price: match.price, selected: true }
-      return { ...item, status: 'same' as const, selected: false }
-    })
+    const comparison: ComparisonItem[] = parsed
+      .map(item => {
+        const normName = normalize(item.name)
+        const normSpec = normalize(item.spec)
+        const match = existingRows.find(
+          r => normalize(r.name) === normName && normalize(r.spec) === normSpec,
+        )
+        if (!match) return null
+        if (match.price !== item.unit_price)
+          return { ...item, status: 'changed' as const, old_price: match.price, selected: true }
+        return { ...item, status: 'same' as const, selected: false }
+      })
+      .filter((item): item is ComparisonItem => item !== null)
 
     return NextResponse.json({ parsed, comparison })
   } catch (e: unknown) {

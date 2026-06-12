@@ -123,8 +123,8 @@ export function calcZone(
     : { perimeterCount: 0, ribs: 0, ribCount: 0, totalCount: 0, orderUnit: 0 }
   const materials: MaterialLine[] = []
 
-  const find = (category: string, matchFn?: (p: WoodMaterialPrice) => boolean) =>
-    prices.find(p => p.category === category && (matchFn ? matchFn(p) : true))
+  const find = (matchFn: (p: WoodMaterialPrice) => boolean) =>
+    prices.find(matchFn)
 
   const push = (p: WoodMaterialPrice | undefined, qty: number, suffix?: string) => {
     if (!p || qty <= 0) return
@@ -141,14 +141,14 @@ export function calcZone(
   // 석고보드 (gypsum_type으로 시트락/방수 구분)
   if (zone.gypsum !== 'none') {
     const keyword = zone.gypsum_type === 'waterproof' ? '방수' : '시트락'
-    const p = find('석고보드', p => p.name.includes(keyword))
+    const p = find(p => p.name.includes('석고') && p.name.includes(keyword))
     push(p, calcGypsum(areaSqm, zone.gypsum, lossRate), '900×1800mm')
   }
 
   // 단열재 (두께로 spec 매칭)
   if (zone.insul_thickness > 0 && zone.insul_layer) {
     const thickness = zone.insul_thickness
-    const p = find('단열재', p => p.spec.startsWith(`${thickness}T`))
+    const p = find(p => (p.name.includes('아이소핑크') || p.name.includes('단열')) && p.spec.startsWith(`${thickness}T`))
     push(p, calcInsulation(areaSqm, zone.insul_layer, lossRate), '900×1800mm')
   }
 
@@ -157,14 +157,14 @@ export function calcZone(
   // MDF (mdf_thickness로 spec 매칭)
   if (zone.mdf && zone.mdf_thickness) {
     const thickness = zone.mdf_thickness
-    const p = find('MDF', p => p.spec.startsWith(`${thickness}T`))
+    const p = find(p => p.name === 'MDF' && p.spec.startsWith(`${thickness}T`))
     push(p, calcBoard(areaSqm, lossRate, zone.half_sheet), sheetSuffix)
   }
 
-  // 합판 (두께로 spec 매칭)
+  // 합판 (두께로 spec 매칭, 요꼬합판 제외)
   if (zone.plywood_thickness) {
     const thickness = zone.plywood_thickness
-    const p = find('합판', p => p.spec.startsWith(`${thickness}T`))
+    const p = find(p => p.name.includes('합판') && !p.name.includes('요꼬합판') && p.spec.startsWith(`${thickness}T`))
     push(p, calcBoard(areaSqm, lossRate, zone.half_sheet), sheetSuffix)
   }
 
@@ -172,7 +172,7 @@ export function calcZone(
   const darukiOrderUnit = zone.daruki_manual ?? darukiAuto.orderUnit
   if (darukiOrderUnit > 0) {
     const lenLabel = zone.daruki_len === 2400 ? '8자' : '12자'
-    const p = find('다루끼', p => p.spec.includes(lenLabel))
+    const p = find(p => p.name.includes('다루끼') && p.spec.includes(lenLabel))
     push(p, darukiOrderUnit)
   }
 

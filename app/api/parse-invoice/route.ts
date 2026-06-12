@@ -122,9 +122,22 @@ export async function POST(req: NextRequest) {
 
     const existingRows = (existing ?? []) as MaterialsPrice[]
 
+    // 괄호/특수문자 제거, 공백 정리, 소문자 변환
+    // 예: "E보드(페인트용)" → "e보드페인트용", "9T 4×8" ≈ "9T 4*8"
+    function normalize(s: string): string {
+      return (s ?? '')
+        .toLowerCase()
+        .replace(/[()（）[\]【】{}「」『』<>《》]/g, '')  // 괄호류
+        .replace(/[×xX*]/g, '')                          // 곱셈 기호 통일 → 제거
+        .replace(/[^\w가-힣\d]/g, '')                    // 그 외 특수문자 제거
+        .replace(/\s+/g, '')                             // 공백 제거
+    }
+
     const comparison: ComparisonItem[] = parsed.map(item => {
+      const normName = normalize(item.name)
+      const normSpec = normalize(item.spec)
       const match = existingRows.find(
-        r => r.name === item.name && (r.spec ?? '') === (item.spec ?? ''),
+        r => normalize(r.name) === normName && normalize(r.spec) === normSpec,
       )
       if (!match) return { ...item, status: 'new' as const }
       if (match.price !== item.unit_price)
